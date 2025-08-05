@@ -1,0 +1,217 @@
+-- =============================================================
+-- DreamHome Database - PostgreSQL Script
+-- Compatible with pgAdmin 4 / psql
+-- Includes: Schema, Sample Data, and Business Rule Triggers
+-- =============================================================
+
+-- Drop tables if they already exist (for repeated testing)
+DROP TABLE IF EXISTS PropertyAdvertisement CASCADE;
+DROP TABLE IF EXISTS Newspapers CASCADE;
+DROP TABLE IF EXISTS Lease CASCADE;
+DROP TABLE IF EXISTS PropertyViewing CASCADE;
+DROP TABLE IF EXISTS Client CASCADE;
+DROP TABLE IF EXISTS PropertyForRent CASCADE;
+DROP TABLE IF EXISTS BusinessOwner CASCADE;
+DROP TABLE IF EXISTS PrivateOwner CASCADE;
+DROP TABLE IF EXISTS Staff CASCADE;
+DROP TABLE IF EXISTS Branch CASCADE;
+
+-- =============================================================
+-- SECTION 1: CREATE TABLES
+-- =============================================================
+
+-- 1. Branch Table
+CREATE TABLE Branch (
+    branchNo VARCHAR(4) PRIMARY KEY,
+    street VARCHAR(50) NOT NULL,
+    city VARCHAR(30) NOT NULL,
+    postcode VARCHAR(10) NOT NULL,
+    telNo1 VARCHAR(15),
+    telNo2 VARCHAR(15),
+    telNo3 VARCHAR(15)
+);
+
+-- 2. Staff Table
+CREATE TABLE Staff (
+    staffNo VARCHAR(5) PRIMARY KEY,
+    fName VARCHAR(30) NOT NULL,
+    lName VARCHAR(30) NOT NULL,
+    position VARCHAR(20) NOT NULL,
+    sex CHAR(1) CHECK (sex IN ('M','F')),
+    dob DATE,
+    salary DECIMAL(10,2) CHECK (salary >= 0),
+    branchNo VARCHAR(4) NOT NULL,
+    supervisorNo VARCHAR(5),
+    FOREIGN KEY (branchNo) REFERENCES Branch(branchNo),
+    FOREIGN KEY (supervisorNo) REFERENCES Staff(staffNo)
+);
+
+-- 3. PrivateOwner Table
+CREATE TABLE PrivateOwner (
+    ownerNo VARCHAR(5) PRIMARY KEY,
+    fName VARCHAR(30) NOT NULL,
+    lName VARCHAR(30) NOT NULL,
+    street VARCHAR(50) NOT NULL,
+    city VARCHAR(30) NOT NULL,
+    postcode VARCHAR(10) NOT NULL,
+    telNo VARCHAR(15)
+);
+
+-- 4. BusinessOwner Table
+CREATE TABLE BusinessOwner (
+    ownerNo VARCHAR(5) PRIMARY KEY,
+    businessName VARCHAR(50) NOT NULL,
+    businessType VARCHAR(30),
+    street VARCHAR(50) NOT NULL,
+    city VARCHAR(30) NOT NULL,
+    postcode VARCHAR(10) NOT NULL,
+    telNo VARCHAR(15),
+    contactName VARCHAR(50) NOT NULL
+);
+
+-- 5. PropertyForRent Table
+CREATE TABLE PropertyForRent (
+    propertyNo VARCHAR(5) PRIMARY KEY,
+    street VARCHAR(50) NOT NULL,
+    city VARCHAR(30) NOT NULL,
+    postcode VARCHAR(10) NOT NULL,
+    type VARCHAR(20) CHECK (type IN ('House','Flat','Apartment','Bungalow')),
+    rooms SMALLINT CHECK (rooms > 0),
+    rent DECIMAL(10,2) CHECK (rent > 0),
+    ownerNo VARCHAR(5) NOT NULL,
+    staffNo VARCHAR(5),
+    branchNo VARCHAR(4) NOT NULL,
+    FOREIGN KEY (staffNo) REFERENCES Staff(staffNo),
+    FOREIGN KEY (branchNo) REFERENCES Branch(branchNo)
+    -- ownerNo can belong to either PrivateOwner or BusinessOwner (no FK constraint for multi-owner type)
+);
+
+-- 6. Client Table
+CREATE TABLE Client (
+    clientNo VARCHAR(5) PRIMARY KEY,
+    fName VARCHAR(30) NOT NULL,
+    lName VARCHAR(30) NOT NULL,
+    telNo VARCHAR(15),
+    prefType VARCHAR(20),
+    maxRent DECIMAL(10,2) CHECK (maxRent >= 0),
+    branchNo VARCHAR(4) NOT NULL,
+    registeredBy VARCHAR(5) NOT NULL,
+    joinDate DATE,
+    status VARCHAR(10) DEFAULT 'Open' CHECK (status IN ('Open','Closed')),
+    FOREIGN KEY (branchNo) REFERENCES Branch(branchNo),
+    FOREIGN KEY (registeredBy) REFERENCES Staff(staffNo)
+);
+
+-- 7. PropertyViewing Table
+CREATE TABLE PropertyViewing (
+    clientNo VARCHAR(5),
+    propertyNo VARCHAR(5),
+    viewDate DATE NOT NULL,
+    comments VARCHAR(200),
+    PRIMARY KEY (clientNo, propertyNo, viewDate),
+    FOREIGN KEY (clientNo) REFERENCES Client(clientNo),
+    FOREIGN KEY (propertyNo) REFERENCES PropertyForRent(propertyNo)
+);
+
+-- 8. Lease Table
+CREATE TABLE Lease (
+    leaseNo SERIAL PRIMARY KEY,
+    clientNo VARCHAR(5) NOT NULL,
+    propertyNo VARCHAR(5) NOT NULL,
+    rentStart DATE NOT NULL,
+    rentEnd DATE NOT NULL,
+    rentAmount DECIMAL(10,2) NOT NULL CHECK (rentAmount > 0),
+    paymentMethod VARCHAR(20),
+    depositPaid BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (clientNo) REFERENCES Client(clientNo),
+    FOREIGN KEY (propertyNo) REFERENCES PropertyForRent(propertyNo),
+    CHECK (rentEnd > rentStart)
+);
+
+-- 9. Newspapers Table
+CREATE TABLE Newspapers (
+    newspaperName VARCHAR(50) PRIMARY KEY,
+    street VARCHAR(50) NOT NULL,
+    city VARCHAR(30) NOT NULL,
+    postcode VARCHAR(10) NOT NULL,
+    telephone VARCHAR(15),
+    contactName VARCHAR(50) NOT NULL
+);
+
+-- 10. PropertyAdvertisement Table
+CREATE TABLE PropertyAdvertisement (
+    advertNo SERIAL PRIMARY KEY,
+    propertyNo VARCHAR(5) NOT NULL,
+    newspaperName VARCHAR(50) NOT NULL,
+    dateAdvertised DATE NOT NULL,
+    cost DECIMAL(10,2) NOT NULL CHECK (cost>=0),
+    FOREIGN KEY (propertyNo) REFERENCES PropertyForRent(propertyNo),
+    FOREIGN KEY (newspaperName) REFERENCES Newspapers(newspaperName)
+);
+
+-- =============================================================
+-- SECTION 2: SAMPLE DATA
+-- =============================================================
+
+-- Branches
+INSERT INTO Branch VALUES
+('B001','Main St','Glasgow','G11AA','04123','04124',NULL),
+('B002','King St','London','L22BB','04222',NULL,NULL);
+
+-- Staff
+INSERT INTO Staff VALUES
+('S001','John','Smith','Manager','M','1980-02-01',45000,'B001',NULL),
+('S002','Jane','Doe','Assistant','F','1990-05-12',25000,'B001','S001');
+
+-- Private Owner
+INSERT INTO PrivateOwner VALUES
+('PO001','Alan','Brown','12 Hill Rd','Glasgow','G11AA','04111');
+
+-- Business Owner
+INSERT INTO BusinessOwner VALUES
+('BO001','City Rentals','RealEstate','50 King St','London','L22BB','04222','Michael Green');
+
+-- Property for Rent
+INSERT INTO PropertyForRent VALUES
+('P001','12 Hill Rd','Glasgow','G11AA','Flat',3,350,'PO001','S002','B001');
+
+-- Client
+INSERT INTO Client (clientNo,fName,lName,telNo,prefType,maxRent,branchNo,registeredBy,joinDate)
+VALUES ('C001','Mike','Ritchie','04199','Flat',400,'B001','S002','2023-01-10');
+
+-- Property Viewing
+INSERT INTO PropertyViewing VALUES
+('C001','P001','2023-02-01','Nice property, interested');
+
+-- Lease
+INSERT INTO Lease (clientNo,propertyNo,rentStart,rentEnd,rentAmount,paymentMethod,depositPaid)
+VALUES ('C001','P001','2023-03-01','2024-02-28',350,'Bank Transfer',TRUE);
+
+-- Newspapers
+INSERT INTO Newspapers VALUES
+('Glasgow Daily','20 Press Rd','Glasgow','G12AB','04155','Emma Brown');
+
+-- Property Advertisement
+INSERT INTO PropertyAdvertisement (propertyNo,newspaperName,dateAdvertised,cost)
+VALUES ('P001','Glasgow Daily','2023-02-15',120.00);
+
+-- =============================================================
+-- SECTION 3: BUSINESS RULE TRIGGER
+-- Automatically close client status once a lease is created
+-- =============================================================
+CREATE OR REPLACE FUNCTION update_client_status_on_lease()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE Client
+    SET status = 'Closed'
+    WHERE clientNo = NEW.clientNo
+    AND status = 'Open';
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER client_status_update_trigger
+AFTER INSERT ON Lease
+FOR EACH ROW
+EXECUTE FUNCTION update_client_status_on_lease();
+
